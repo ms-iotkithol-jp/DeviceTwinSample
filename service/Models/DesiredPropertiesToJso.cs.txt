@@ -1,0 +1,15 @@
+        public string DesiredPropertiesToJson()
+        {
+            var props = new
+            {
+                dmConfig = new
+                {
+                    DeviceType = DeviceType,
+                    TelemetryCycle = TelemetryCycle,
+                    Latitude = Latitude,
+                    Longitude = Longitude
+                }
+            };
+
+            return Newtonsoft.Json.JsonConvert.SerializeObject(props);
+        }

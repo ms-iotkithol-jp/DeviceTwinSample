@@ -1,0 +1,12 @@
+        public void SetDesiredProperties(string json)
+        {
+            var desiredProps = Newtonsoft.Json.JsonConvert.DeserializeObject(json) as Newtonsoft.Json.Linq.JObject;
+            var dmConfig = desiredProps.Value<Newtonsoft.Json.Linq.JObject>("dmConfig");
+            if (dmConfig != null)
+            {
+                DeviceType = dmConfig.Value<string>("DeviceType");
+                TelemetryCycle = dmConfig.Value<string>("TelemetryCycle");
+                Latitude = dmConfig.Value<double>("Latitude");
+                Longitude = dmConfig.Value<double>("Longitude");
+            }
+        }
