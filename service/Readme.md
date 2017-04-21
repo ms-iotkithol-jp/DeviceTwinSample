@@ -92,6 +92,8 @@ NuGetのViewが表示されたら、”参照”を選択して、検索窓に�
         public double Latitude { get; set; }
         public double Longitude { get; set; }
 
+        public string Reported { get; set; }
+
         public string DesiredPropertiesToJson()
         {
             throw new NotImplementedException();
@@ -316,6 +318,27 @@ Visual Studioのエディタ上で、緑や赤の波線が下に表示されて�
         </td>
         <td>
             @Html.DisplayFor(modelItem => item.DeviceType)
+```
+次に、Details.cshtmlを修正します。 
+43行目付近の
+```
+        <dd>
+            @Html.DisplayFor(model => model.Longitude)
+        </dd>
+    </dl>
+```
+の、Longitude（経度）の値をWebページに表示するロジックの下の`</dd>`と`</dl>`の間に以下のように、Reportedプロパティを表示するロジックを加えます。 
+```
+        <dd>
+            @Html.DisplayFor(model => model.Longitude)
+        </dd>
+        <dt>
+            @Html.DisplayNameFor(model => model.Reported)
+        </dt>
+        <dd>
+            @Html.DisplayFor(model => model.Reported);
+        </dd>
+    </dl>
 ```
 以上で、修正は完了です。
 

@@ -89,6 +89,7 @@ namespace DevMgmtWebApp.Models
     public interface IModeledDevice
     {
         string Id { get; set; }
+        string Reported { get; set; }
 
         string DesiredPropertiesToJson();
         void SetDesiredProperties(string json);
@@ -140,6 +141,13 @@ namespace DevMgmtWebApp.Models
                         Id = registedDevice.Id
                     };
                     device.SetDesiredProperties(registedDeviceTwin.Properties.Desired.ToJson());
+
+                    // Set Reported Properties.
+                    var rpJSON = (Newtonsoft.Json.Linq.JObject)Newtonsoft.Json.JsonConvert.DeserializeObject(registedDeviceTwin.Properties.Reported.ToJson(Newtonsoft.Json.Formatting.None));
+                    rpJSON.Remove("$metadata");
+                    rpJSON.Remove("$version");
+                    device.Reported = Newtonsoft.Json.JsonConvert.SerializeObject(rpJSON);
+
                     devices.Add(new IoTDeviceEntry<TDevice>()
                     {
                         Device = device,
