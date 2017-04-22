@@ -39,7 +39,7 @@ IF(WIN32)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
     add_definitions(-DGB_MEASURE_MEMORY_FOR_THIS -DGB_DEBUG_ALLOC)
     add_definitions(/WX-)
-    set(AZUREIOT_INC_FOLDER "../../../serializer/inc" ".")
+    set(AZUREIOT_INC_FOLDER "../../../serializer/inc" "../../../parson/inc" ".")
     include_directories(${AZUREIOT_INC_FOLDER})
 ENDIF(WIN32)
 

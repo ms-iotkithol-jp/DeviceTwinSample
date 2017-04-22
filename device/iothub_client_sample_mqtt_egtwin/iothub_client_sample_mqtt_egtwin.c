@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 #include "serializer.h"
+#include "parson.h"
 
 #include "iothub_client.h"
 #include "iothub_message.h"
@@ -43,7 +44,7 @@ BEGIN_NAMESPACE(EGIoTHoL);
 /**
 	Sample for structured properties
 */
-DECLARE_STRUCT(realPosition_t,
+DECLARE_STRUCT(position_t,
 double, latitude,
 double, longitude
 );
@@ -54,16 +55,28 @@ double, longitude
 */
 DECLARE_MODEL(thingie_t,
 WITH_REPORTED_PROPERTY(ascii_char_ptr, firmware),
-WITH_REPORTED_PROPERTY(realPosition_t, realPosition),
+WITH_REPORTED_PROPERTY(position_t, realPosition),
 WITH_REPORTED_PROPERTY(ascii_char_ptr, machineStatus),
 WITH_REPORTED_PROPERTY(double, batteryLevel)
 );
 
 END_NAMESPACE(EGIoTHoL);
 
+/**
+	Desired Properties will be received from IoT Hub
+*/
+
+typedef struct EG_DESIRED_PROPERTIES_tag
+{
+	char* deviceType;
+	position_t desiredPosition;
+	int telemetryCycle;
+} EG_DESIRED_PROPERTIES;
+
 typedef struct PHYSICAL_DEVICE_TAG
 {
 	thingie_t   *iot_device;
+	EG_DESIRED_PROPERTIES desiredProperties;
 	LOCK_HANDLE  status_lock;
 	MACHINE_STATUS status;
 } PHYSICAL_DEVICE;
@@ -156,7 +169,11 @@ static void physical_device_delete(PHYSICAL_DEVICE *physical_device)
 	free(physical_device);
 }
 
-
+typedef struct  EG_IOTHUBCLIENT_CONTEXT_tag
+{
+	IOTHUB_CLIENT_HANDLE iotHubClientHandle;
+	PHYSICAL_DEVICE* physicalDevice;
+} EG_IOTHUBCLIENT_CONTEXT;
 
 double realLatitude = 200;
 double realLongitude = 123;
@@ -296,10 +313,27 @@ static IOTHUBMESSAGE_DISPOSITION_RESULT ReceiveMessageCallback(IOTHUB_MESSAGE_HA
 */
 void DeviceTwinCallback(DEVICE_TWIN_UPDATE_STATE update_state, const unsigned char* payLoad, size_t size, void* userContextCallback)
 {
-	IOTHUB_CLIENT_HANDLE handle = (IOTHUB_CLIENT_HANDLE)userContextCallback;
+	EG_IOTHUBCLIENT_CONTEXT* context = (EG_IOTHUBCLIENT_CONTEXT*)userContextCallback;
 	printf("DeviceTwinCallback - status=%d\n", update_state);
-	printf("palyLoad[%d]=%s\n", size, payLoad);
+	char* tmpBuf = (char*)malloc(size + 1);
+	memcpy(tmpBuf, payLoad, size);
+	tmpBuf[size] = '\0';
+	printf("palyLoad[%d]=%s\n", size, tmpBuf);
+	char* buf = "{\"desired\": {\"dmConfig\": {\"DeviceType\": \"windows\",\"TelemetryCycle\" : \"10000\",\"Latitude\" : 39.1,\"Longitude\" : 138.1},\"$version\": 4	},\"reported\": {\"iothubDM\": {\"firmwareVersion\": \"Windows 10\",\"firmwareUpdate\" : {\"status\": \"downloadComplete\"}},\"batteryLevel\": 3.3,\"machineStatus\" : \"running\",\"realPosition\" : {\"latitude\": 200,\"longitude\" : 123	},\"firmware\" : \"Windows 10\",\"$version\" : 16}}";
+	JSON_Value *json = json_parse_string(buf);
+	JSON_Object* jsonRoot = json_value_get_object(json);
+	JSON_Object* desiredJson =json_object_get_object(jsonRoot , "desired");
+	
+	context->physicalDevice->desiredProperties.desiredPosition.latitude = json_object_dotget_number(desiredJson, "dmConfig.Latitude");
+	context->physicalDevice->desiredProperties.desiredPosition.longitude = json_object_dotget_number(desiredJson, "dmConfig.Longitude");
 
+	JSON_Object* dmConfigJson = json_object_get_object(desiredJson, "dmConfig");
+	const char* tc = json_object_get_string(dmConfigJson, "TelemetryCycle");
+	sscanf(tc, "%d", &(context->physicalDevice->desiredProperties.telemetryCycle));
+	const char* deviceType = json_object_get_string(dmConfigJson, "DeviceType");
+	context->physicalDevice->desiredProperties.deviceType = (char*)malloc(sizeof(deviceType) + 1);
+	strcpy(context->physicalDevice->desiredProperties.deviceType, deviceType);
+	json_value_free(jsonRoot);
 }
 
 static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result, void* userContextCallback)
@@ -311,11 +345,20 @@ static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result, v
     IoTHubMessage_Destroy(eventInstance->messageHandle);
 }
 
-static PHYSICAL_DEVICE* currentDevice;
-
 void iothub_client_sample_mqtt_run(void)
 {
-    IOTHUB_CLIENT_HANDLE iotHubClientHandle;
+	EG_IOTHUBCLIENT_CONTEXT* context = (EG_IOTHUBCLIENT_CONTEXT*)malloc(sizeof(EG_IOTHUBCLIENT_CONTEXT));
+
+	thingie_t *iot_device = CREATE_MODEL_INSTANCE(EGIoTHoL, thingie_t);
+	iot_device->batteryLevel = currentBatteryLevel;
+	iot_device->firmware = device_get_firmware();
+	iot_device->realPosition.latitude = realLatitude;
+	iot_device->realPosition.longitude = realLongitude;
+
+	context->physicalDevice = physical_device_new(iot_device);
+	set_physical_device_machine_status(context->physicalDevice, initial);
+
+	IOTHUB_CLIENT_HANDLE iotHubClientHandle;
 
     EVENT_INSTANCE messages[MESSAGE_COUNT];
 
@@ -332,7 +375,7 @@ void iothub_client_sample_mqtt_run(void)
     }
     else
     {
-		set_physical_device_machine_status(currentDevice, running);
+		set_physical_device_machine_status(context->physicalDevice, running);
 
 		if ((iotHubClientHandle = IoTHubClient_CreateFromConnectionString(connectionString, MQTT_Protocol)) == NULL)
         {
@@ -340,13 +383,13 @@ void iothub_client_sample_mqtt_run(void)
         }
         else
         {
-			IoTHubClient_SetDeviceTwinCallback(iotHubClientHandle, DeviceTwinCallback, iotHubClientHandle);
-
+			context->iotHubClientHandle = iotHubClientHandle;
+			IoTHubClient_SetDeviceTwinCallback(iotHubClientHandle, DeviceTwinCallback, context);
 
             bool traceOn = true;
             IoTHubClient_SetOption(iotHubClientHandle, "logtrace", &traceOn);
 
-			SendReportedProperties(currentDevice, iotHubClientHandle);
+			SendReportedProperties(context->physicalDevice, iotHubClientHandle);
 
 #ifdef MBED_BUILD_TIMESTAMP
             // For mbed add the certificate information
@@ -419,15 +462,6 @@ void iothub_client_sample_mqtt_run(void)
 
 int main(void)
 {
-	thingie_t *iot_device = CREATE_MODEL_INSTANCE(EGIoTHoL, thingie_t);
-	iot_device->batteryLevel = currentBatteryLevel;
-	iot_device->firmware = device_get_firmware();
-	iot_device->realPosition.latitude = realLatitude;
-	iot_device->realPosition.longitude = realLongitude;
-
-	currentDevice = physical_device_new(iot_device);
-	set_physical_device_machine_status(currentDevice, initial);
-
     iothub_client_sample_mqtt_run();
     return 0;
 }
