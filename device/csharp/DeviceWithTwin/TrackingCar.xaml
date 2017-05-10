@@ -1,0 +1,39 @@
+﻿<Window x:Class="DeviceWithTwin.TrackingCar"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DeviceWithTwin"
+        mc:Ignorable="d"
+        Title="TrackingCar" Height="640" Width="900">
+    <Grid>
+        <Image Source="images/Tokyomap.png" MouseDown="MapImage_MouseDown"/>
+        <Canvas Name="canvasTracking">
+            <Image Source="images/car.png" Width="50" Canvas.Top="{Binding Path=PosY}" Canvas.Left="{Binding Path=PosX}" MouseDown="Image_MouseDown" MouseMove="Image_MouseMove" MouseUp="Image_MouseUp" MouseLeave="Image_MouseLeave"/>
+            <Image Name="imgGoal" Source="images/Goal.png" Visibility="Hidden" Width="100"/>
+        </Canvas>
+        <Button Name="buttonTracking" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="1" Content="Tracking Start" Click="buttonTracking_Click"/>
+        <Button Name="buttonCharge" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="1" Content="Charge" Click="buttonCharge_Click"/>
+        <Grid Name="posiitonPane">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="40"/>
+                <RowDefinition/>
+                <RowDefinition Height="300"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="80"/>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="20"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="緯度" FontSize="24"/>
+            <TextBlock Grid.Row="1" Text="経度" FontSize="24"/>
+            <TextBlock Grid.Row="2" Text="Battery" FontSize="24"/>
+            <TextBlock Grid.Column="1" Text="{Binding Path=Latitude}" FontSize="24"/>
+            <TextBlock Grid.Column="1" Grid.Row="1" Text="{Binding Path=Longitude}" FontSize="24"/>
+            <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding Path=BatteryLevel}" FontSize="24"/>
+        </Grid>
+    </Grid>
+</Window>
