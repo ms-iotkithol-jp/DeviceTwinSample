@@ -9,9 +9,7 @@ namespace DevMgmtWebApp.Models
 {
     public class DeviceModelsIoTHubContext : IoTHubContext<DeviceModels>
     {
-        static string cs = "<< IoT Hub Connection String >>";
-
-        public DeviceModelsIoTHubContext() : base(connectionString: cs)
+        public DeviceModelsIoTHubContext(string conn) : base(connectionString: conn)
         {
             DeviceModels = new IoTHubDeviceSet<DeviceModels>(registryManager);
             modelDevices = DeviceModels;
@@ -31,14 +29,14 @@ namespace DevMgmtWebApp.Models
         }
 
         //        public IoTDeviceEntry<TDevice> Entry<TDevice>(TDevice device) where TDevice : IModeledDevice
-        public async Task<IoTDeviceEntry<TDevice>> Entry(TDevice device)
+        public async Task<IoTDeviceEntry<TDevice>> EntryAsync(TDevice device)
         {
-            var entry = await modelDevices.FindEntity(device);
+            var entry = await modelDevices.FindEntityAsync(device);
 
             return entry;
         }
 
-        public async Task<int> SaveChanges()
+        public async Task<int> SaveChangesAsync()
         {
             int modified = 0;
             string twinJson = "";
@@ -113,7 +111,7 @@ namespace DevMgmtWebApp.Models
             devices = new List<IoTDeviceEntry<TDevice>>();
             modifiedDevices = new List<IoTDeviceEntry<TDevice>>();
         }
-        public async Task<IEnumerable<TDevice>> ToList()
+        public async Task<IEnumerable<TDevice>> ToListAsync()
         {
             List<TDevice> resultSet = await LoadIoTHubDevicesAsync();
             return resultSet;
@@ -160,7 +158,7 @@ namespace DevMgmtWebApp.Models
             return resultSet;
         }
 
-        public async Task<IoTDeviceEntry<TDevice>> FindEntity(TDevice device)
+        public async Task<IoTDeviceEntry<TDevice>> FindEntityAsync(TDevice device)
         {
             IoTDeviceEntry<TDevice> target = null;
             await LoadIoTHubDevicesAsync();
@@ -174,7 +172,7 @@ namespace DevMgmtWebApp.Models
             return target;
         }
 
-        public async Task<TDevice> Find(string Id)
+        public async Task<TDevice> FindAsync(string Id)
         {
             TDevice result = null;
             await LoadIoTHubDevicesAsync();
@@ -186,10 +184,10 @@ namespace DevMgmtWebApp.Models
             return result;
         }
 
-        public async Task<TDevice> Add(TDevice device)
+        public async Task<TDevice> AddAsync(TDevice device)
         {
             await LoadIoTHubDevicesAsync();
-            var initem = await Find(device.Id);
+            var initem = await FindAsync(device.Id);
             if (initem == null)
             {
                 var entryDevice = new IoTDeviceEntry<TDevice>()
@@ -203,7 +201,7 @@ namespace DevMgmtWebApp.Models
             return device;
         }
 
-        public async Task<TDevice> Remove(TDevice device)
+        public async Task<TDevice> RemoveAsync(TDevice device)
         {
             //     await LoadIoTHubDevicesAsync();
             var candidate = from d in devices where d.Device.Id == device.Id select d;

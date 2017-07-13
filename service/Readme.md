@@ -51,14 +51,15 @@ Azure IoT Hubに接続するデバイスに付与する管理パラメータ用�
     }
 ```
 Idは、Azure IoT Hubにデバイスを登録する際に必要な、個々のデバイスを識別する識別子、DeviceIdとして利用されます。どんなパラメータセットを定義する場合にも、必ず宣言してください。  
-コーディングが終わったら、リビルドしてください。  
+コーディングが終わったら、一旦、リビルドしてください。  
 
 ### 3. View付きのMVCコントローラの作成 
 次に、前ステップで作成したモデルのオブジェクトを、生成、閲覧、編集、削除、一覧表示を行うための、Viewとコントローラを、Visual Studioのスキャフォールディング機能を使って生成します。  
 ソリューションエクスプローラーで、DevMgmtWebAppプロジェクトの”Controllers”フォルダーを右クリックし、コンテキストメニューの、”追加”→”コントローラ”を選択し、表示されたダイアログで、”Entity Frameworkを使用した、ビューがあるMVC 5コントローラー”を選択し、”追加”をクリックします。  
 表示されたダイアログで、以下の様に設定します。  
 - モデルクラス - DeviceModelsを選択 
-- データコンテキストクラス - 右の”＋”ボタンをクリックしデフォルトのコンテキスト型名で追加します 
+- データコンテキストクラス - 右の”＋”ボタンをクリックしデフォルトのコンテキスト型名で追加します
+- ”非同期コントローラ アクションの使用”に、✔を入れます 
 - ビュー - ”ビューの生成”、”スクリプトライブラリの参照”、”レイアウトページの使用”全てに✔を入れます 
 - コントローラー名 - 表示されたままの文字列をそのまま利用します 
 
@@ -109,26 +110,40 @@ NuGetのViewが表示されたら、”参照”を選択して、検索窓に�
 ※ 作業の簡略化の為、リポジトリのModelsフォルダーにはそれぞれのコードフラグメントを用意しているので、手書きコーディングに自信が無い方は、そちらを利用してくださいね。  
 
 ### 6. 同期ライブラリへの接続文字列設定  
-前ステップで追加した、IoTHubContext.csに、Azure IoT Hubに接続するための接続文字列を設定します。  
+Web.configファイルを開き、appSettingsの項目にAzure IoT Hubへの接続文字列を追加します。 
 [Azureポータル](http://portal.azure.com)で作成済みのAzure IoT Hubの共有アクセスポリシーのiothubownerの接続文字列を確認し、
+```xml
+  <appSettings>
+    ...
+    <add key="iothubconnectionstring" value="<< Azure IoT Hub iothubowner connection string>>"/>
+  </appSettings>
+```
+と、keyがiothubconnectionstringで、valueが接続文字列である設定が追加されます。<< Azure IoT Hub iothubonwer connection string >>を接続文字列で置き換えます。置き換え後は、
+```xml
+    <add key="iothubconnectionstring" value="HostName=...azure-devices.net;SharedAccessKeyName=iothubowner;SharedAccessKey=....="/>
+```
+の様な文字列になっているはずです。これで、Azure IoT Hubに接続する為の情報設定は完了です。
+また、Azure Web Appsにデプロイ後は、Web Appsのアプリケーション設定にこのKeyとValueを設定すれば別の接続先に変更することも可能です。
+このセキュリティ情報をとりだして、Webアプリは、Azure IoT HubのRegistry機能にアクセスします。
+
+### 7. スキャフォールディングで生成したコンテキストとコントローラの修正 
+Step 3で自動生成されたDeviceModelsController.csの実装は、SQL Databaseにパラメータ群を保持するコードになっています。これを、Step 5、6で追加したIoTHubContext.csを使ってAzure IoT Hubにパラメータ群を保持するよう、変更を加えていきます。 
+先ずは、自動生成された、DevMgmtWebAppContext.csをエディターで開きます。 
+定義されたDevMgmgtWeAppContextの下に、以下のクラス定義を追加します。 
 ```cs
     public class DeviceModelsIoTHubContext : IoTHubContext<DeviceModels>
     {
-        static string cs = "<< IoT Hub Connection String >>";
-
-        public DeviceModelsIoTHubContext() : base(connectionString: cs)
+        public DeviceModelsIoTHubContext(string conn) : base(connectionString: conn)
         {
             DeviceModels = new IoTHubDeviceSet<DeviceModels>(registryManager);
+            modelDevices = DeviceModels;
+        }
+        public IoTHubDeviceSet<DeviceModels> DeviceModels { get; set; }
+    }
 ```
-DeviceModelsIoTHubContextクラスの、csの<< IoT Hub Connection String >>を接続文字列で置き換えます。置き換え後は、
-```cs
-        static string cs = "HostName=…;SharedAccessKeyName=iothubowner;SharedAccessKey=...";
-```
-の様な文字列になっているはずです。これで、Azure IoT Hubに接続する為の情報設定は完了です。このセキュリティ情報を使って、Azure IoT HubのRegistry機能にアクセスします。
-
-### 7. スキャフォールディングで生成したコントローラの修正 
-Step 3で自動生成されたDeviceModelsController.csの実装は、SQL Databaseにパラメータ群を保持するコードになっています。これを、Step 5、6で追加したIoTHubContext.csを使ってAzure IoT Hubにパラメータ群を保持するよう、変更を加えていきます。先ずは、DeviceModelsController.csをエディターで開きます。  
-先ずは、DeviceModelsControllerクラスの冒頭の部分に修正を加えます。自動生成された修正前のコードは、
+※一つのWeb Appで複数のデバイス種別を管理する場合は、それぞれのTwin Propertiesを管理するモデルクラスと、スキャフォールディング時にContextクラスもそれぞれのデバイス種別ごとに作り、同じ変更を加えます。その際は、DeviceModelsをそれぞれ該当するモデルクラスの名前に変えてください。 
+次に、DeviceModelsController.csをエディターで開きます。  
+こちらは、DeviceModelsControllerクラスの冒頭の部分に修正を加えます。自動生成された修正前のコードは、
 ```cs
 namespace DevMgmtWebApp.Controllers
 {
@@ -143,148 +158,6 @@ namespace DevMgmtWebApp.Controllers
     {
         private DeviceModelsIoTHubContext db = new DeviceModelsIoTHubContext();
 ```
-DevieModelsIoTHubContextクラスが提供するメソッドは非同期メソッドなので、それを使えるように、親クラスをAsyncControllerに変更し、db変数をDeviceModelsIoTHubContextのインスタンスに変更しています。  
-次に、非同期メソッドに対応する為、DeviceModelsControllerクラスの、CreateとDisposeの2つのメソッド以外の全てのメソッドの戻り値の型を”async Task<ActionResult>”に変更します。例えば、
-```cs
-        public ActionResult Index()
-        {
-            return View(db.DeviceModels.ToList());
-        }
-```
-の場合は、
-```cs
-        public async Task<ActionResult> Index()
-```
-の様に修正します。Taskは、Using宣言が足りないので、ファイルのUsing宣言をしている個所に、
-```cs
-using System.Threading.Tasks;
-```
-を追加してください。  
-次に、DeviceModelsIoTHubContextクラスのメソッドは非同期メソッドなので、Controllerクラスのメソッドの中で、このクラスのメソッドをコールしているところは、全て”await”を付与していきます。例えば、Indexメソッドの場合は、以下の様な形式に変えます。
-```cs
-        public async Task<ActionResult> Index()
-        {
-            return View(await db.DeviceModels.ToList());
-        }
-```
-Visual Studioのエディタ上で、緑や赤の波線が下に表示されているものは大抵修正対象です。最終的には、以下の様なコードが出来上がります。
-```cs
-    public class DeviceModelsController : AsyncController
-    {
-        private DeviceModelsIoTHubContext db = new DeviceModelsIoTHubContext();
-
-        // GET: DeviceModels
-        public async Task<ActionResult> Index()
-        {
-            return View(await db.DeviceModels.ToList());
-        }
-
-        // GET: DeviceModels/Details/5
-        public async Task<ActionResult> Details(string id)
-        {
-            if (id == null)
-            {
-                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            DeviceModels deviceModels = await db.DeviceModels.Find(id);
-            if (deviceModels == null)
-            {
-                return HttpNotFound();
-            }
-            return View(deviceModels);
-        }
-
-        // GET: DeviceModels/Create
-        public ActionResult Create()
-        {
-            return View();
-        }
-
-        // POST: DeviceModels/Create
-        // 過多ポスティング攻撃を防止するには、バインド先とする特定のプロパティを有効にしてください。
-        // 詳細については、http://go.microsoft.com/fwlink/?LinkId=317598 を参照してください。
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<ActionResult> Create([Bind(Include = "Id,DeviceType,TelemetryCycle,Latitude,Longitude")] DeviceModels deviceModels)
-        {
-            if (ModelState.IsValid)
-            {
-                await db.DeviceModels.Add(deviceModels);
-                await db.SaveChanges();
-                return RedirectToAction("Index");
-            }
-
-            return View(deviceModels);
-        }
-
-        // GET: DeviceModels/Edit/5
-        public async Task<ActionResult> Edit(string id)
-        {
-            if (id == null)
-            {
-                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            DeviceModels deviceModels = await db.DeviceModels.Find(id);
-            if (deviceModels == null)
-            {
-                return HttpNotFound();
-            }
-            return View(deviceModels);
-        }
-
-        // POST: DeviceModels/Edit/5
-        // 過多ポスティング攻撃を防止するには、バインド先とする特定のプロパティを有効にしてください。
-        // 詳細については、http://go.microsoft.com/fwlink/?LinkId=317598 を参照してください。
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<ActionResult> Edit([Bind(Include = "Id,DeviceType,TelemetryCycle,Latitude,Longitude")] DeviceModels deviceModels)
-        {
-            if (ModelState.IsValid)
-            {
-                (await db.Entry(deviceModels)).State = EntityState.Modified;
-                await db.SaveChanges();
-                return RedirectToAction("Index");
-            }
-            return View(deviceModels);
-        }
-
-        // GET: DeviceModels/Delete/5
-        public async Task<ActionResult> Delete(string id)
-        {
-            if (id == null)
-            {
-                return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            DeviceModels deviceModels = await db.DeviceModels.Find(id);
-            if (deviceModels == null)
-            {
-                return HttpNotFound();
-            }
-            return View(deviceModels);
-        }
-
-        // POST: DeviceModels/Delete/5
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<ActionResult> DeleteConfirmed(string id)
-        {
-            DeviceModels deviceModels = await db.DeviceModels.Find(id);
-            await db.DeviceModels.Remove(deviceModels);
-            await db.SaveChanges();
-            return RedirectToAction("Index");
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                db.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-    }
-```
-※ Editメソッドだけちょっとパターンが違うのでご注意。 
 これで、DeviceModelsControllerクラスの実装を、DeviceModelsIoTHubContextに接続する為の修正は完了です。  
 
 ### 8. スキャフォールディングで生成したビューの修正  
@@ -345,6 +218,10 @@ Visual Studioのエディタ上で、緑や赤の波線が下に表示されて�
 ### 9. 実行 
 修正が全て終わったら、ローカル環境で先ずはテストを実施しましょう。デバッグ実行すると、ブラウザが開いて、http://localhost:xxxx/が開きます。URLをhttp://localhost:xxxx/DeviceModelsに変更すると、デバイス種別、テレメタリー間隔、緯度、経度をDevice TwinのDesiredPropertiesに格納可能なデバイス登録削除用のWeb UIが表示されます。Device ExplorerでAzure IoT Hub側でのデバイスの登録状況を確認しながら、デバイスの登録、DesiredPropertiesの編集、デバイスの削除などを試してみてください。  
 このリポジトリの[client側のサンプル](../client/readme.md)をデバイス上で実行し、Azure IoT Hubに接続している場合には、こちら側のWeb UIでのパラメータ変更時、デバイス側に通知が行くので、そちらもご確認ください。
+
+### 10. Azure Web App への配置 
+ソリューションエクスプローラで、プロジェクトを右クリックし、”公開”を選択して、Azureにデプロイしてください。 
+デプロイ方法は、[IoT Kit Hands-on COntent](http://aka.ms/IoTKitHoL)で公開されている自学自習コンテンツのStep9を参考にしてください。 
 
 ## 補足 
 このサンプルでは、”DeviceModels”という名前でモデルを作成しました。よりシナリオ依存な、Trackとか、Guitarとか、FAControllerとかスペシフィックな名前に変えたい場合には、このサンプルを参考に、適宜関連するクラス名や、プロパティ名を変更して応用をお願いします。  
