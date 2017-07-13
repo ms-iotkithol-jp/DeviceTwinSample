@@ -333,7 +333,7 @@ void DeviceTwinCallback(DEVICE_TWIN_UPDATE_STATE update_state, const unsigned ch
 	const char* deviceType = json_object_get_string(dmConfigJson, "DeviceType");
 	context->physicalDevice->desiredProperties.deviceType = (char*)malloc(sizeof(deviceType) + 1);
 	strcpy(context->physicalDevice->desiredProperties.deviceType, deviceType);
-	json_value_free(jsonRoot);
+	json_value_free(json);
 }
 
 static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result, void* userContextCallback)
