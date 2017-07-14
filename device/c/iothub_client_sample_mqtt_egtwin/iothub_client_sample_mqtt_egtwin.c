@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "serializer.h"
 #include "parson.h"
@@ -235,7 +236,7 @@ static int callbackCounter;
 static char msgText[1024];
 static char propText[1024];
 static bool g_continueRunning;
-#define MESSAGE_COUNT 5
+#define MESSAGE_COUNT 100
 #define DOWORK_LOOP_NUM     3
 
 
@@ -348,6 +349,7 @@ static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result, v
 void iothub_client_sample_mqtt_run(void)
 {
 	EG_IOTHUBCLIENT_CONTEXT* context = (EG_IOTHUBCLIENT_CONTEXT*)malloc(sizeof(EG_IOTHUBCLIENT_CONTEXT));
+	char currentTime[32];
 
 	thingie_t *iot_device = CREATE_MODEL_INSTANCE(EGIoTHoL, thingie_t);
 	iot_device->batteryLevel = currentBatteryLevel;
@@ -414,7 +416,15 @@ void iothub_client_sample_mqtt_run(void)
                 {
                     if (iterator < MESSAGE_COUNT)
                     {
-                        sprintf_s(msgText, sizeof(msgText), "{\"deviceId\":\"myFirstDevice\",\"windSpeed\":%.2f}", avgWindSpeed + (rand() % 4 + 2));
+                        time_t now;
+                    	struct tm *local;
+
+                    	now = time(NULL);
+                    	local = localtime(&now);
+
+						sprintf(currentTime, "%04d-%02d-%02dT%02d:%02d:%02dZ", local->tm_year + 1900, local->tm_mon + 1, local->tm_mday, local->tm_hour, local->tm_min, local->tm_sec);
+
+                        sprintf_s(msgText, sizeof(msgText), "{\"deviceId\":\"myFirstDevice\",\"windSpeed\":%.2f,\"MeasuredTime\":\"%s\"}", avgWindSpeed + (rand() % 4 + 2), currentTime);
                         if ((messages[iterator].messageHandle = IoTHubMessage_CreateFromByteArray((const unsigned char*)msgText, strlen(msgText))) == NULL)
                         {
                             (void)printf("ERROR: iotHubMessageHandle is NULL!\r\n");
